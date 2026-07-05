@@ -1,0 +1,85 @@
+Model Sizing:
+INT4 = 0.5 bytes per weight
+Formula: model size = parameters x byte per weight
+
+13B model:
+13,000,000,000 x 0.5 bytes = 6,500,000,000 bytes
+6,500,000,000 / 1,073,741,824 = 6.05 GiB weights-only
+deployed VRAM = 6.05 x 1.30 = 7.87 GiB
+
+The 48 GB GPU is enough for the 13B model.
+
+70B model:
+70,000,000,000 x 0.5 bytes = 35,000,000,000 bytes
+35,000,000,000 / 1,073,741,824 = 32.60 GiB weights-only
+deployed VRAM = 32.60 x 1.30 = 42.38 GiB
+
+The 48 GB GPU can fit the 70B INT4 model, but it is tight. If context length or batch size increases, it can become a problem. So 13B is the safer choice for this machine.
+
+2. Vector database sizing
+
+Given:
+chunks = 5,000,000
+dimensions = 1536
+precision = halfvec
+halfvec = 2 bytes per value
+
+I selected halfvec because it saves storage compared to float32, but it is not as aggressive as int8.
+
+Formula:
+vector size = number of vectors x dimensions x bytes
+
+Raw vector size:
+5,000,000 x 1536 x 2 = 15,360,000,000 bytes
+15,360,000,000 / 1,073,741,824 = 14.31 GiB
+
+HNSW overhead:
+14.31 x 10 percent = 1.43 GiB
+
+Total vector database:
+14.31 + 1.43 = 15.74 GiB
+
+3. Dataset sizing
+
+RAG corpus:
+Assumption: 50,000 documents, average cleaned size 1 MB each.
+50,000 x 1 MB = 50,000 MB = about 48.8 GiB
+
+Fine-tuning dataset:
+Assumption: 20,000 approved Q&A examples, average 10 KB each.
+20,000 x 10 KB = 200,000 KB = about 0.2 GiB
+
+Logs:
+Assumption: one year of access and inference logs.
+Estimated size = 20 GiB
+
+Scratch space:
+Assumption: temporary files for chunking, embeddings, and rebuilds.
+Estimated size = 25 GiB
+
+4. Total estate size
+
+Using the 13B model:
+13B model weights = 6.05 GiB
+Vector database = 15.74 GiB
+RAG corpus = 48.8 GiB
+Fine-tuning data = 0.2 GiB
+Logs = 20 GiB
+Scratch = 25 GiB
+
+Total = 6.05 + 15.74 + 48.8 + 0.2 + 20 + 25
+Total = 115.79 GiB
+
+Using the 70B model:
+70B model weights = 32.60 GiB
+Vector database = 15.74 GiB
+RAG corpus = 48.8 GiB
+Fine-tuning data = 0.2 GiB
+Logs = 20 GiB
+Scratch = 25 GiB
+
+Total = 32.60 + 15.74 + 48.8 + 0.2 + 20 + 25
+Total = 142.34 GiB
+
+Final storage plan:
+I would plan for at least 145 GiB. In real use, I would provision 250 GiB so there is room for growth, backup copies, and rebuild work.

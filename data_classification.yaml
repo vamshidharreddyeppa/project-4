@@ -1,0 +1,120 @@
+version: 1
+owner: storage-admin@grace-mercy.example
+review_cadence_days: 90
+
+tiers:
+  hot:
+    media: nvme_ssd
+    purpose: live serving and low-latency retrieval
+    iops_floor: 50000
+  warm:
+    media: sata_ssd
+    purpose: active datasets and rebuild inputs
+    iops_floor: 5000
+  cold:
+    media: hdd_or_low_cost_block
+    purpose: audit logs and rarely read records
+    iops_floor: 150
+  archive:
+    media: object_archive
+    purpose: long-term backup and recovery
+    retrieval_hours: 12
+
+assets:
+  - name: base_model_weights_13b_int4
+    sensitivity: internal
+    tier: hot
+    irreplaceable: false
+    retention: while_in_service
+    disposition: delete when replaced and verified unused
+    reason: base model can be downloaded again, but live serving needs fast reads
+
+  - name: candidate_model_weights_70b_int4
+    sensitivity: internal
+    tier: hot
+    irreplaceable: false
+    retention: while_in_evaluation
+    disposition: delete if the ministry chooses the 13b plan
+    reason: evaluation copy is reproducible and should not sit forever
+
+  - name: fine_tuned_model_weights
+    sensitivity: restricted
+    tier: hot
+    irreplaceable: true
+    retention: indefinite_with_annual_review
+    lineage_required: true
+    backup_required: true
+    disposition: retain while model is approved; archive old versions after replacement
+    reason: tuned weights may not be recreated exactly after training
+
+  - name: vector_database_hnsw_index
+    sensitivity: internal
+    tier: hot
+    irreplaceable: false
+    retention: while_in_service
+    disposition: rebuild from approved corpus when stale or corrupted
+    reason: vector index needs high random-read performance but is reproducible
+
+  - name: rag_source_corpus
+    sensitivity: mixed_internal_restricted
+    tier: warm
+    irreplaceable: partly
+    retention: while_document_is_current_plus_3_years
+    lineage_required: true
+    disposition: archive official records; delete duplicates and stale drafts
+    reason: source documents are needed for rebuilds and audit of answers
+
+  - name: anonymized_pastoral_care_summaries
+    sensitivity: restricted
+    tier: warm
+    irreplaceable: true
+    retention_days: 365
+    encryption_at_rest: required
+    lineage_required: true
+    disposition: delete after retention unless leadership/legal hold approves extension
+    reason: even anonymized care summaries can carry privacy risk
+
+  - name: fine_tuning_dataset_internal_qa
+    sensitivity: restricted
+    tier: warm
+    irreplaceable: true
+    retention_days: 365
+    encryption_at_rest: required
+    lineage_required: true
+    legal_basis_documented: true
+    disposition: review and delete expired PII rows; keep approved non-PII examples
+    reason: this dataset is valuable but can become a liability if PII remains too long
+
+  - name: inference_and_access_logs
+    sensitivity: internal
+    tier: cold
+    irreplaceable: false
+    retention_days: 400
+    worm: true
+    disposition: delete after retention unless investigation hold exists
+    reason: logs support audit and troubleshooting but are not hot serving data
+
+  - name: storage_audit_outputs
+    sensitivity: internal
+    tier: cold
+    irreplaceable: false
+    retention_days: 400
+    disposition: delete after retention or replace with newer audit
+    reason: audit outputs support storage decisions and compliance review
+
+  - name: scratch_embeddings_and_temp_exports
+    sensitivity: internal
+    tier: warm
+    irreplaceable: false
+    retention_days: 30
+    disposition: delete automatically after 30 days
+    reason: scratch files are reproducible and should not become hidden storage waste
+
+  - name: backup_of_fine_tuned_weights
+    sensitivity: restricted
+    tier: archive
+    irreplaceable: true
+    retention: indefinite_with_annual_restore_test
+    encryption_at_rest: required
+    disposition: keep approved versions; delete failed or superseded experiments after review
+    reason: this is the recovery copy if the live tuned model is lost
